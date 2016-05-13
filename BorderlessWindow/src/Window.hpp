@@ -15,7 +15,7 @@ using unique_hwnd = std::unique_ptr<HWND__, HWND_deleter>;
 class BorderlessWindow
 {
 public:
-    BorderlessWindow();
+	BorderlessWindow(unsigned width = 1280, unsigned height = 720);
 	bool is_closed() const { return closed; }
 	HWND handle() const { return hwnd.get(); }
 

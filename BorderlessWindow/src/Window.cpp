@@ -51,8 +51,8 @@ const std::wstring& BorderlessWindow::window_class() {
 }
 
 
-BorderlessWindow::BorderlessWindow()
-	: hwnd(CreateWindow(window_class().c_str(), L"Borderless Window", static_cast<DWORD>(Style::aero_borderless), 0, 0, 1280, 720, nullptr, nullptr, module_handle(), nullptr)) {
+BorderlessWindow::BorderlessWindow(unsigned width, unsigned height)
+	: hwnd(CreateWindow(window_class().c_str(), L"Borderless Window", static_cast<DWORD>(Style::aero_borderless), 0, 0, width, height, nullptr, nullptr, module_handle(), nullptr)) {
 
     if (!hwnd)
 		throw std::runtime_error("failed to create window");
@@ -79,19 +79,34 @@ LRESULT CALLBACK BorderlessWindow::WndProc(HWND hwnd, UINT msg, WPARAM wparam, L
 
 		switch (msg) {
 			case WM_NCCALCSIZE: {
-				// this kills the window frame and title bar we added with
-				// WS_THICKFRAME or WS_CAPTION
-				if (window.borderless) return 0;
-				break;
+				if (window.borderless) {
+					auto& nccp = *reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
+
+					// rgrc[0] = new window rect
+					// rgrc[1] = old window rect
+					// rgrc[2] = old client rect
+					const auto x_border = std::abs(nccp.rgrc[1].left - nccp.rgrc[2].left);
+					const auto y_border = std::abs(nccp.rgrc[1].bottom - nccp.rgrc[2].bottom);
+
+					// on output, new client rect expected in rgrg[0]
+					// take new window rect, add the borders back,
+					// but leave out the titlebar
+					nccp.rgrc[0].left   += x_border;
+					nccp.rgrc[0].right  -= x_border;
+					nccp.rgrc[0].bottom -= y_border;
+					return 0;
+				}
+				break; // DefWindowProc
 			}
 
-			case WM_NCACTIVATE: {
-				// this prevents the border and title bar appearing when clicking
-				// on non-client area regions of the window.
-				// This only seems to happen with the Windows 7 basic theme.
-				if (window.borderless) return 1;
-				break;
-			}
+			// this appears to be problematic in Win10
+			//case WM_NCACTIVATE: {
+			//	// this prevents the border and title bar appearing when clicking
+			//	// on non-client area regions of the window.
+			//	// This only seems to happen with the Windows 7 basic theme.
+			//	if (window.borderless) return 1;
+			//	break;
+			//}
 
 			case WM_NCHITTEST: {
 				// When we have no border or title bar,
@@ -100,9 +115,6 @@ LRESULT CALLBACK BorderlessWindow::WndProc(HWND hwnd, UINT msg, WPARAM wparam, L
 				if (window.borderless) {
 					if (window.borderless_resize) {
 						// identify regions as window borders to allow resizing
-						// Note: On Windows 10, windows behave differently and 
-						// allow resizing outside the visible window frame.
-						// This implementation does not replicate that behavior.
 						const LONG border_width = 8; //in pixels
 						RECT winrect;
 						GetWindowRect(hwnd, &winrect);
