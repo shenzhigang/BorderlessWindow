@@ -1,4 +1,4 @@
-#include "BorderLessWindow.hpp"
+﻿#include "BorderLessWindow.hpp"
 
 #include <cassert>
 #include <stdexcept>
@@ -35,7 +35,7 @@ const wchar_t* BorderlessWindow::window_class() {
 		wcx.hInstance = module_handle();
 		wcx.lpfnWndProc = &BorderlessWindow::WndProc;
 		wcx.lpszClassName = L"BorderlessWindowClass";
-		wcx.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+		//wcx.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BACKGROUND + 1);
 		wcx.hCursor = LoadCursor(module_handle(), IDC_ARROW);
 		const HRESULT result = ::RegisterClassEx(&wcx);
 		if (FAILED(result))
@@ -61,6 +61,28 @@ BorderlessWindow::BorderlessWindow()
 	set_borderless(borderless);
 	set_borderless_shadow(borderless_shadow);
 	show();
+
+	ID2D1Factory* factory;
+	D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &factory);
+	auto props = D2D1::RenderTargetProperties(
+		D2D1_RENDER_TARGET_TYPE_DEFAULT,
+		D2D1::PixelFormat(
+			DXGI_FORMAT_B8G8R8A8_UNORM,
+			D2D1_ALPHA_MODE_PREMULTIPLIED
+		),
+		0,
+		0,
+		D2D1_RENDER_TARGET_USAGE_NONE,
+		D2D1_FEATURE_LEVEL_DEFAULT
+	);
+	factory->CreateDCRenderTarget(&props, &rt);
+	rt->CreateSolidColorBrush(D2D1::ColorF(1, 0.6f, 0, 1), &brush);
+	factory->Release();
+}
+
+BorderlessWindow::~BorderlessWindow() {
+	brush->Release();
+	rt->Release();
 }
 
 bool composition_enabled() {
@@ -173,13 +195,26 @@ LRESULT CALLBACK BorderlessWindow::WndProc(HWND hwnd, UINT msg, WPARAM wparam, L
 				}
 				break;
 			}
-
-
 			case WM_CLOSE: {
 				window.closed = true;
 				return 0;
 			}
+			case WM_PAINT: {
+				PAINTSTRUCT ps;
+				auto dc = BeginPaint(hwnd, &ps);
 
+				RECT client;
+				GetClientRect(hwnd, &client);
+				auto& rt = *window.rt;
+				rt.BindDC(dc, &client);
+
+				rt.BeginDraw();
+				rt.FillRectangle(D2D1::RectF(0, 0, client.right, client.bottom), window.brush);
+				rt.EndDraw();
+
+				EndPaint(hwnd, &ps);
+				return 0;
+			}
 			case WM_KEYDOWN:
 			case WM_SYSKEYDOWN: {
 				switch (wparam) {

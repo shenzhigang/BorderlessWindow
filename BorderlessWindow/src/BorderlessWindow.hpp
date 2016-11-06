@@ -4,6 +4,12 @@
 #include <memory>
 #include <string>
 
+#define WINVER 0x601
+#define _WIN32_WINNT 0x601
+
+#include <d2d1.h>
+#pragma comment(lib, "d2d1.lib")
+
 #include <Windows.h>
 
 struct HWND_deleter {
@@ -18,6 +24,7 @@ using unique_hwnd = std::unique_ptr<HWND__, HWND_deleter>;
 class BorderlessWindow {
 public:
 	BorderlessWindow();
+	~BorderlessWindow();
 	bool is_closed() const { return closed; }
 	HWND handle() const { return hwnd.get(); }
 
@@ -25,7 +32,9 @@ public:
 	void set_borderless_shadow(bool enabled);
 
 private:
-	unique_hwnd hwnd;
+	unique_hwnd           hwnd;
+	ID2D1DCRenderTarget*  rt;
+	ID2D1SolidColorBrush* brush;
 
 	bool borderless        = true;  // is the window currently borderless
 	bool closed            = false; // has the window been closed
@@ -40,4 +49,5 @@ private:
 	void show() const;
 	void set_shadow(bool enabled) const;
 	LRESULT hit_test(POINT point) const;
+
 };
